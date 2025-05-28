@@ -1,0 +1,48 @@
+import numpy as np
+import sounddevice as sd
+from scipy import signal
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import make_pipeline
+
+def record():
+    duration = 2
+    sample_rate = 44100
+    print('говорите...')
+    audio = sd.rec(int(duration * sample_rate), samplerate=sample_rate, channels=1, dtype='float32')
+    sd.wait()
+    audio = audio.flatten()
+    
+    nperseg = 1024
+    noverlap = 512
+    _, _, spectrogram = signal.spectrogram(audio, fs=sample_rate, nperseg=nperseg, noverlap=noverlap)
+    
+    # Преобразуем спектрограмму в 1D вектор и нормализуем
+    spectrogram_db = 10 * np.log10(spectrogram)
+    return (spectrogram_db - np.min(spectrogram_db)) / (np.max(spectrogram_db) - np.min(spectrogram_db))
+
+# Записываем данные для каждого класса
+def record_class_samples(n_samples):
+    return [record().flatten() for _ in range(n_samples)]
+
+# Собираем данные (по 10 образцов на каждый из 3 классов)
+print('1')
+X_class1 = record_class_samples(20)  # Класс 1
+print('2')
+X_class2 = record_class_samples(20)  # Класс 2
+
+# Создаём матрицу признаков и метки
+X = np.vstack([X_class1, X_class2])
+y = np.array([1]*20 + [2]*20)  # 10 меток для каждого класса
+
+print(f"Форма X: {X.shape}")  # Должно быть (30, n_features)
+print(f"Форма y: {y.shape}")  # Должно быть (30,)
+
+# Создаём и обучаем модель с нормализацией
+model = make_pipeline(
+    StandardScaler(),
+    LogisticRegression(multi_class='auto', solver='lbfgs', max_iter=1000)
+)
+
+model.fit(X, y)
+print("Модель успешно обучена!")
