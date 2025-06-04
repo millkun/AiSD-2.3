@@ -5,31 +5,26 @@
 #include "ArduinoJson.h"
 #include "GyverMAX7219.h"
 
-// Настройки сети
 const char* ssid = "millkun";
 const char* password = "assembler";
 const char* serverUrl = "http://192.168.25.116:5000/process_audio";
 const unsigned long apiTimeout = 5000;
 
-// Настройки аудио
 #define SAMPLE_RATE 16000
 #define RECORD_DURATION_MS 1500 // Записываю 1.5 секунды
 #define BUFFER_SIZE (SAMPLE_RATE * RECORD_DURATION_MS / 1000) // 24000 сэмплов
 #define CHUNK_SIZE 2048 // Размер одного чанка для отправки
 
-// Настройки матрицы
 #define MATRIX_CS_PIN 27
 #define MATRIX_DIN_PIN 13
 #define MATRIX_CLK_PIN 14
 #define MATRIX_NUM 1
 
-// Настройки кнопки
 #define BUTTON_PIN 27
 #define DEBOUNCE_DELAY 50
 
 MAX7219<MATRIX_NUM, MATRIX_NUM, MATRIX_CS_PIN, MATRIX_DIN_PIN, MATRIX_CLK_PIN> matrix;
 
-// Глобальные переменные
 int16_t audioBuffer[BUFFER_SIZE];
 WiFiClient client;
 volatile bool buttonPressed = false;
@@ -63,7 +58,6 @@ void IRAM_ATTR buttonISR() { // Поскольку я делаю прерыва�
     lastInterruptTime = interruptTime;
 }
 
-// Тут подключаюсь к сети
 void connectWiFi() { 
     if (WiFi.status() == WL_CONNECTED) return;
     
@@ -87,7 +81,6 @@ void connectWiFi() {
     }
 }
 
-// Тут отображаю картинки на матрице
 void printImage(const String& imageName) {
     // Маппинг названий на указатели PROGMEM
     struct IconMapping {
@@ -105,7 +98,6 @@ void printImage(const String& imageName) {
         {"square", square}
     };
 
-    // Ищем эмодзи по имени
     const uint8_t* iconPtr = nullptr;
     for (const auto& mapping : iconMap) {
         if (imageName.equalsIgnoreCase(mapping.name)) {
@@ -128,18 +120,16 @@ void recordAudio() {
     Serial.println("Начало записи...");
     isRecording = true;
     matrix.clear();
-    printImage("record"); // Индикатор записи
+    printImage("record");
     matrix.update();
     
     unsigned long sampleInterval = 1000000 / SAMPLE_RATE; // 62.5 мкс для 16 кГц
     unsigned long nextSampleTime = micros();
     
     for (int i = 0; i < BUFFER_SIZE; i++) {
-        // Чтение АЦП
         int sample = adc1_get_raw(ADC1_CHANNEL_0);
         audioBuffer[i] = sample - 2048;
         
-        // Точная пауза до следующего сэмпла
         while (micros() - nextSampleTime < sampleInterval) {
             delayMicroseconds(10);  // Короткие паузы
         }
@@ -227,7 +217,7 @@ void handleCommand(String command) {
     } else if (command == "шум") {
         printImage("square");
     }
-    delay(2000); // Показываю команду 2 секунды
+    delay(2000);
 }
 
 void setup() {
@@ -235,21 +225,17 @@ void setup() {
     delay(1000);
     Serial.println("\nИнициализация системы...");
     
-    // Настройка кнопки
     pinMode(BUTTON_PIN, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), buttonISR, FALLING);
     
-    // Настройка АЦП
     adc1_config_width(ADC_WIDTH_BIT_12);
     adc1_config_channel_atten(ADC1_CHANNEL_0, ADC_ATTEN_DB_12);
     
-    // Настройка матрицы
     matrix.begin();
     matrix.setBright(5);
     matrix.setRotation(3);
     matrix.clear();
     
-    // Подключение к сети
     connectWiFi();
     
     Serial.println("Система готова к работе. Нажмите кнопку для записи.");
@@ -259,12 +245,11 @@ void loop() {
     if (buttonPressed && !isRecording && !isProcessing) {
         buttonPressed = false;
         
-        // Проверка сети на доступность
         if (WiFi.status() != WL_CONNECTED) {
             connectWiFi();
             if (WiFi.status() != WL_CONNECTED) {
                 matrix.clear();
-                printImage("error"); // Индикатор ошибки
+                printImage("error");
                 matrix.update();
                 delay(2000);
                 return;
@@ -273,16 +258,15 @@ void loop() {
       
         recordAudio();
         
-        // Отправка на сервер
         if (!sendAudioToServer()) {
             matrix.clear();
-            printImage("error"); // Индикатор ошибки
+            printImage("error");
             matrix.update();
             delay(2000);
         }
       
         matrix.clear();
-        matrix.dot(5, 0, 1); // Индикатор готовности к новой записи
+        matrix.dot(5, 0, 1);
         matrix.update();
     }
     
