@@ -55,20 +55,18 @@ class ResNetSpectrogram(nn.Module):
         x = self.fc(x)
         return x
 
-# Загружаю модель
 def load_model(model_path, num_classes=3):
     model = ResNetSpectrogram(num_classes=num_classes)
     model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
     model.eval()
     return model
 
-# Тут подготовка данных
 def prepare_input(audio):
     # Делаю float, потому что с МК идет int16_t, а обучали на флоат
     audio = audio.astype(np.float32)
     audio = librosa.util.normalize(audio)
     
-    mel_spec = create_mel_spec(audio) # Основные действия
+    mel_spec = create_mel_spec(audio)
     input_data = normalize(mel_spec)
     
     # Добавляю размерности для модели (1, 1, H, W)
@@ -76,7 +74,6 @@ def prepare_input(audio):
     
     return input_tensor, mel_spec
 
-# Сохраняю спектрограммы как изображения, чтобы проверять работоспособность
 def save_spectrogram_image(spec, filename):
     try:
         plt.figure(figsize=(10, 4))
@@ -89,10 +86,8 @@ def save_spectrogram_image(spec, filename):
     except Exception as e:
         print(f"Error saving spectrogram: {e}")
 
-# Классы команд
 CLASS_NAMES = ["дата", "алгоритмы", "время", "шум"]
 
-# Загружаю лучшую модель
 model = load_model("best_model.pth", num_classes=len(CLASS_NAMES))
 
 # Глобальный буфер здесь
@@ -123,7 +118,6 @@ def process_audio():
             current_session["total_samples"] = 0
             print(f"\n🔥 Начата новая сессия {current_session['id']}")
 
-        # Проверяю, что чанк пришел в правильной сессии
         if len(current_session["chunks"]) != chunk_index:
             print(f"⛔️ Ошибка порядка чанков! Ожидался {len(current_session['chunks'])}, получен {chunk_index}")
             return jsonify({"error": "Invalid chunk order"}), 400
@@ -144,15 +138,12 @@ def process_audio():
             # Склеиваем все чанки в один массив
             full_audio = np.concatenate(current_session["chunks"])
             
-            # Сохраняю сырые аудио данные, опять же для отладки потом программы
             audio_filename = f"{AUDIO_FOLDER}/audio_{current_session['id']}.pkl"
             with open(audio_filename, 'wb') as f:
                 pickle.dump(full_audio, f)
             
-            # Подготовка входных данных для модели
             input_tensor, mel_spec = prepare_input(full_audio)
             
-            # Сохраняю картинку спектрограммки
             spec_image_filename = f"{SPECTROGRAM_FOLDER}/spec_{current_session['id']}.png"
             save_spectrogram_image(mel_spec, spec_image_filename)
             
